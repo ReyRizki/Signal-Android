@@ -1,11 +1,19 @@
 package org.thoughtcrime.securesms.conversation;
 
 import android.content.Context;
+import android.graphics.Typeface;
+import android.os.Build;
+import android.text.Spannable;
 import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
+import android.text.style.StyleSpan;
+import android.text.style.TypefaceSpan;
+import android.util.Log;
 
 import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.annotation.WorkerThread;
 
 import org.signal.core.util.Conversions;
@@ -18,6 +26,8 @@ import org.thoughtcrime.securesms.database.model.MessageRecord;
 import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.List;
+
+import static android.graphics.Typeface.MONOSPACE;
 
 /**
  * A view level model used to pass arbitrary message related information needed
@@ -73,11 +83,59 @@ public class ConversationMessage {
     return Conversions.byteArrayToLong(bytes);
   }
 
-  public @NonNull SpannableString getDisplayBody(Context context) {
-    if (mentions.isEmpty() || body == null) {
-      return messageRecord.getDisplayBody(context);
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+  private static SpannableString applyFormatting(SpannableString str) {
+    String resultString = str.toString();
+
+    int index = resultString.indexOf('`');
+
+    if (index == -1) {
+      return str;
     }
-    return body;
+
+    int next = -1;
+    SpannableStringBuilder builder = new SpannableStringBuilder("");
+    TypefaceSpan style= new TypefaceSpan("monospace");
+
+    if (index != 0) {
+      builder.append(resultString, 0, index);
+    }
+
+    while (index != -1) {
+      if (next != -1) {
+        builder.append(resultString, next + 1, index);
+      }
+
+      next = resultString.indexOf('`', index + 1);
+
+      if (next == -1) {
+        builder.append(resultString, index, resultString.length());
+        break;
+      }
+
+      builder.append(resultString.substring(index + 1, next), style, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+      index = resultString.indexOf('`', next + 1);
+    }
+
+    if ((next != -1) && (next < resultString.length() - 1)) {
+      builder.append(resultString, next + 1, resultString.length());
+    }
+
+    return SpannableString.valueOf(builder);
+  }
+
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+  public @NonNull SpannableString getDisplayBody(Context context) {
+    SpannableString option;
+
+    if (mentions.isEmpty() || body == null) {
+      option =  messageRecord.getDisplayBody(context);
+    } else {
+      option = body;
+    }
+
+    return applyFormatting(option);
   }
 
   /**
